@@ -183,14 +183,87 @@ int main(void) {
 
 	glm::vec3 positions[] = { glm::vec3(0.0, 0.0, 0.0), glm::vec3(-2.0, 0.0, -4.0),  glm::vec3(2.0, 0.0, -8.0) };
 
+	// framebuffer configuration
+// -------------------------
+
+	unsigned int framebuffer;
+	glGenFramebuffers(1, &framebuffer);
+	glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
+	// create a color attachment texture
+	unsigned int textureColorbuffer;
+	glGenTextures(1, &textureColorbuffer);
+	glBindTexture(GL_TEXTURE_2D, textureColorbuffer);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, WIN_WIDTH, WIN_HEIGHT, 0, GL_RGB, GL_UNSIGNED_BYTE, NULL);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	glBindTexture(GL_TEXTURE_2D, 0);
+
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, textureColorbuffer, 0);
+	// create a renderbuffer object for depth and stencil attachment (we won't be sampling these)
+	unsigned int rbo;
+	glGenRenderbuffers(1, &rbo);
+	glBindRenderbuffer(GL_RENDERBUFFER, rbo);
+	glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, WIN_WIDTH, WIN_HEIGHT); // use a single renderbuffer object for both a depth AND stencil buffer.
+	glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, rbo); // now actually attach it
+	glBindRenderbuffer(GL_RENDERBUFFER, 0);
+	// now that we actually created the framebuffer and added all attachments we want to check if it is actually complete now
+	if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
+		std::cout << "ERROR::FRAMEBUFFER:: Framebuffer is not complete!" << std::endl;
+	
+
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+	//--------------
+
+	float screenVertices[] = {
+		// positions        // texture coords
+		-1.0, -1.0, 0.0,	0.0, 1.0,
+		 1.0, -1.0, 0.0,    1.0, 1.0,
+		 1.0,  1.0, 0.0,    1.0, 0.0,
+		-1.0,  1.0, 0.0,    0.0, 0.0
+	};
+
+	unsigned int screenIndices[] = {
+		0, 1, 2, // first triangle
+		2, 3, 0  // second triangle
+	};
+
+	unsigned int screenVao;
+	glGenVertexArrays(1, &screenVao);
+	glBindVertexArray(screenVao);
+
+	unsigned int screenBuffer;
+	glGenBuffers(1, &screenBuffer);
+	glBindBuffer(GL_ARRAY_BUFFER, screenBuffer);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(screenVertices), screenVertices, GL_STATIC_DRAW);
+
+	unsigned int screenEBO;
+	glGenBuffers(1, &screenEBO);
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, screenEBO);
+	glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(screenIndices), screenIndices, GL_STATIC_DRAW);
+
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)0);
+	glEnableVertexAttribArray(0);
+
+	glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)(3 * sizeof(float)));
+	glEnableVertexAttribArray(1);
+
+	Shader screenShaders("res/shaders/screenVertex.vs", "res/shaders/screenFragment.fs");
+	screenShaders.use();
+
+
+
 	while (!glfwWindowShouldClose(window))
 	{
 		processInput(window);
 
-		glBindFramebuffer(GL_FRAMEBUFFER, 0);
-		glEnable(GL_DEPTH_TEST);
+		glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+		glEnable(GL_DEPTH_TEST);
 
+		glBindVertexArray(vao);
+		shaders.use();
+		shaders.setInt("modelTexture", 0);
+		glBindTexture(GL_TEXTURE_2D, wall);
 		glm::mat4 model = glm::mat4(1.0f);
 		glm::mat4 view = camera.GetViewMatrix();
 		glm::mat4 projection = glm::perspective(glm::radians(camera.Zoom), (float)WIN_WIDTH / (float)WIN_HEIGHT, 0.1f, 100.0f);
@@ -211,14 +284,28 @@ int main(void) {
 			glUniformMatrix4fv(uTransform, 1, GL_FALSE, glm::value_ptr(trans));
 			glDrawElements(GL_TRIANGLES, 36, GL_UNSIGNED_INT, 0);
 		}
-		
+
+		glBindFramebuffer(GL_FRAMEBUFFER, 0);
+		glClear(GL_COLOR_BUFFER_BIT);
+
+		screenShaders.use();
+		glDisable(GL_DEPTH_TEST);
+		glBindVertexArray(screenVao);
+		glBindTexture(GL_TEXTURE_2D, textureColorbuffer);
+		glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
+
+
+		GLCheckError();
 		/* Swap front and back buffers */
 		glfwSwapBuffers(window);
 
 		/* Poll for and process events */
 		glfwPollEvents();
 	}
-
+	glDeleteFramebuffers(1, &framebuffer);
+	glDeleteVertexArrays(1, &screenVao);
+	glDeleteBuffers(1, &screenBuffer);
+	glDeleteBuffers(1, &screenEBO);
 	glDeleteVertexArrays(1, &vao);
 	glDeleteBuffers(1, &buffer);
 	glDeleteBuffers(1, &EBO);
