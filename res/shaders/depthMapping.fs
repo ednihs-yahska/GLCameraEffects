@@ -1,13 +1,10 @@
 #version 330 core
 #define NUM_TAPS 8
 
-uniform vec4 timeColor;
-uniform sampler2D modelTexture;
+uniform sampler2D screenTexture;
 
 in vec2 vTexCoord;
-
 out vec4 color;
-
 
 uniform sampler2D tSource;
 uniform sampler2D tSourceLow;
@@ -17,6 +14,9 @@ vec2 poisson[NUM_TAPS];
 vec2 pixelSizeHigh;
 vec2 pixelSizeLow;
 
+vec2 iResHigh = textureSize(tSource, 0);
+vec2 iResLow = textureSize(tSourceLow, 0);
+
 vec2 vMaxCoC = vec2(5.0, 10.0);
 
 float radiusScale = 0.4;
@@ -25,6 +25,9 @@ float radiusScale = 0.4;
 vec4 PoissonDOFFilter(vec2 texCoord){
 	vec4 cOut;
 	float discRadius, discRadiusLow, centerDepth;
+
+	pixelSizeHigh = 1/iResHigh;
+	pixelSizeLow = 1/iResLow;
 
 	cOut = texture2D(tSource, texCoord);
 	centerDepth = cOut.a;
@@ -51,20 +54,12 @@ vec4 PoissonDOFFilter(vec2 texCoord){
 	return (cOut / cOut.a);
 }
 
-float near = 0.1; 
-float far  = 100.0; 
-  
-float LinearizeDepth(float depth) 
-{
-    float z = depth * 2.0 - 1.0; // back to NDC 
-    return (2.0 * near * far) / (far + near - z * (far - near));	
-}
-
 void main()
 { 
-	//color = texture(modelTexture, vTexCoord);
-	float depth = LinearizeDepth(gl_FragCoord.z) / far;
-	color = vec4(vec3(depth), 1.0);
+	//vec2 scaledCoord = vTexCoord/1.5;
+	poisson[0] = vec2(0.15, 0.15); poisson[1] = vec2(0.22, 0.22); poisson[2] = vec2(0.3, 0.3); poisson[3] = vec2(0.35, 0.35); poisson[4] = vec2(0.32, 0.32); 
+	poisson[5] = vec2(0.28, 0.28); poisson[6] = vec2(0.17, 0.17); poisson[7] = vec2(0.8, 0.8);
+	color = PoissonDOFFilter(vTexCoord);
 	//color = vec4(1.0, 1.0, 0.0, 1.0);
 	//color = vec4(vTexCoord.x, vTexCoord.y, 1.0, 1.0);//texture(churchTexture, vTexCoord); 
 };

@@ -1,0 +1,3 @@
+lensflare on
+motionblur on
+dof off
